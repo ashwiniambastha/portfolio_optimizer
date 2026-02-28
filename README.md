@@ -1,4 +1,5 @@
 # ⬡ Portfolio Intelligence System 
+**https://9b7a49b4b6f6a4764e.gradio.live/**
 <div align="center">
 
 ![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)
@@ -9,7 +10,7 @@
 ![FastAPI](https://img.shields.io/badge/FastAPI-REST%20API-009688?style=for-the-badge&logo=fastapi&logoColor=white)
 
 <br/>
->(**https://9b7a49b4b6f6a4764e.gradio.live/**)
+
 
 > **A multi-agent AI-powered platform for comprehensive portfolio risk analysis and market intelligence.**  
 > Built as part of the IIT Madras curriculum — Week 3 of 16.
