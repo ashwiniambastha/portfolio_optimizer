@@ -241,7 +241,7 @@ streamlit
 python risk_ui_enhanced.py
 ```
 
-Open your browser at: **http://localhost:7862**  
+Open your browser at: **https://9b7a49b4b6f6a4764e.gradio.live/**  
 A public share link will also be printed in the terminal.
 
 ---
