@@ -246,7 +246,7 @@ class RiskManagementAgent:
             'recovery_date': str(recovery_date) if recovery_date and isinstance(recovery_date, (int, np.integer)) else (recovery_date.strftime('%Y-%m-%d') if recovery_date else 'Not yet recovered'),
             'drawdown_days': drawdown_days,
             'recovery_days': recovery_days if recovery_days else 'Ongoing',
-           'interpretation': f"Worst decline: {abs(max_dd):.2%} from {peak_date} to {trough_date}"
+           'interpretation': f"Worst decline: {abs(max_dd):.2%} from {peak_date} to {max_dd_date}"
         }
     
     # ==================== SHARPE RATIO ====================
