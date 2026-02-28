@@ -87,7 +87,7 @@ class MarketDataAgent:
 # Demo/Test
 if __name__ == "__main__":
     # Test with some popular stocks
-    symbols = ['AAPL', 'GOOGL', 'MSFT', 'TSLA', 'AMZN']
+    symbols =['AAPL', 'GOOGL', 'MSFT', 'TSLA', 'AMZN']
     
     agent = MarketDataAgent(symbols)
     
