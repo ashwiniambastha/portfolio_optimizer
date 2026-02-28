@@ -254,7 +254,7 @@ Run each agent in a separate terminal:
 # Terminal 1 — Market Data Agent API
 cd agents/market_data
 python api.py
-# Runs on http://localhost:8000
+# Runs on http://localhost:8000](https://ad98868533aa94b755.gradio.live/
 ```
 
 ```bash
@@ -267,7 +267,7 @@ python api.py
 ```bash
 # Terminal 3 — Dashboard
 python risk_ui_enhanced.py
-# Runs on http://localhost:7862
+# Runs on http://localhost:7862](https://9b7a49b4b6f6a4764e.gradio.live/
 ```
 
 ---
