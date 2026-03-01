@@ -195,7 +195,7 @@ The system is built on two cooperating agents:
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/your-team/portfolio-intelligence-system.git
+git clone https://github.com/ashwiniambastha/portfolio_optimizer.git
 cd portfolio-intelligence-system
 ```
 
