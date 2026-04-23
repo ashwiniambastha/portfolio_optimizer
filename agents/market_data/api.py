@@ -3,6 +3,28 @@ from pydantic import BaseModel
 from typing import List, Optional
 import uvicorn
 
+
+def sanitise(obj):
+    """Recursively replace float NaN/Inf with None for safe JSON serialisation."""
+    if isinstance(obj, float):
+        return None if (obj != obj or obj == float('inf') or obj == float('-inf')) else obj
+    if isinstance(obj, dict):
+        return {k: sanitise(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [sanitise(v) for v in obj]
+    try:
+        import numpy as _np
+        if isinstance(obj, _np.floating):
+            f = float(obj)
+            return None if (f != f or f == float('inf') or f == float('-inf')) else f
+        if isinstance(obj, _np.integer):
+            return int(obj)
+    except Exception:
+        pass
+    return sanitise(obj)
+
+
+
 from agent import MarketDataAgent
 from storage import MarketDataStorage
 
@@ -26,7 +48,8 @@ def get_price(symbol: str):
     data = agent.fetch_realtime_data(symbol)
     if data:
         storage.save_realtime_data(data)
-        return data
+        return sanitise(data)
+
     raise HTTPException(status_code=404, detail="Symbol not found")
 
 @app.get("/prices")
@@ -35,7 +58,8 @@ def get_all_prices():
     data = agent.fetch_all_symbols()
     for symbol, info in data.items():
         storage.save_realtime_data(info)
-    return data
+    return sanitise(data)
+
 
 @app.get("/historical/{symbol}")
 def get_historical(symbol: str, period: str = "1mo"):
