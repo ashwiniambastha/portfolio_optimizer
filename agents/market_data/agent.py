@@ -10,36 +10,29 @@ class MarketDataAgent:
     Market Data Agent - Fetches and manages market data
     """
     
-    def __init__(self, symbols: List[str]):
-        self.symbols = symbols
+    def __init__(self, symbols=None):
+        self.symbols = symbols or []
         self.data_cache = {}
         self.last_update = {}
         
     def fetch_realtime_data(self, symbol: str) -> Dict:
-        """
-        Fetch current market data for a symbol
-        """
         try:
             ticker = yf.Ticker(symbol)
             info = ticker.info
+        
+            price = info.get('currentPrice') or info.get('regularMarketPrice')
+        
+            # Return None if no valid price found
+            if not price or price == 0:
+                return None
             
-            # Get current price data
             data = {
                 'symbol': symbol,
                 'timestamp': datetime.now().isoformat(),
-                'price': info.get('currentPrice', info.get('regularMarketPrice')),
-                'open': info.get('regularMarketOpen'),
-                'high': info.get('dayHigh'),
-                'low': info.get('dayLow'),
-                'volume': info.get('volume'),
-                'market_cap': info.get('marketCap'),
-                'pe_ratio': info.get('trailingPE'),
-                'dividend_yield': info.get('dividendYield'),
+                'price': price,
+                # ... rest of fields
             }
-            
-            print(f"✓ Fetched data for {symbol}: ${data['price']}")
             return data
-            
         except Exception as e:
             print(f"✗ Error fetching {symbol}: {str(e)}")
             return None
@@ -102,7 +95,9 @@ if __name__ == "__main__":
     # Display results
     print("\n2. Current Prices:")
     for symbol, info in data.items():
-        print(f"   {symbol}: ${info['price']:.2f} (Vol: {info['volume']:,})")
+        price = info['price'] or 0.0
+        volume = info['volume'] or 0
+        print(f"   {symbol}: ${price:.2f} (Vol: {volume:,})")
     
     # Fetch historical data for one stock
     print("\n3. Fetching historical data for AAPL...")

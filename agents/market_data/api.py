@@ -44,13 +44,24 @@ def root():
 
 @app.get("/price/{symbol}")
 def get_price(symbol: str):
-    """Get current price for a symbol"""
-    data = agent.fetch_realtime_data(symbol)
-    if data:
+    """Get current price for ANY symbol requested by the Gradio frontend"""
+    sym = symbol.upper().strip()
+    
+    # Try original symbol first
+    data = agent.fetch_realtime_data(sym)
+    
+    # If price is 0 or None, try with Indian exchange suffixes
+    if not data or not data.get('price'):
+        for suffix in ['.NS', '.BO']:
+            data = agent.fetch_realtime_data(sym + suffix)
+            if data and data.get('price'):
+                break
+    
+    if data and data.get('price') is not None:
         storage.save_realtime_data(data)
         return sanitise(data)
-
-    raise HTTPException(status_code=404, detail="Symbol not found")
+    
+    raise HTTPException(status_code=404, detail=f"Symbol '{sym}' not found or invalid") 
 
 @app.get("/prices")
 def get_all_prices():

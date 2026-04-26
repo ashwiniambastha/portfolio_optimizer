@@ -1,122 +1,97 @@
-"""
-Run this script once to patch agents/market_data/api.py in-place.
-It adds NaN sanitisation and drops the partial last-day candle from yfinance.
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+from typing import List, Optional
+import uvicorn
+import numpy as _np
 
-Usage:
-    python fix_market_data_api.py
-"""
-import re
-import sys
-import pathlib
-
-TARGET = pathlib.Path("agents/market_data/api.py")
-
-if not TARGET.exists():
-    # Try common alternative paths
-    for p in [
-        pathlib.Path("api.py"),
-        pathlib.Path("market_data/api.py"),
-    ]:
-        if p.exists():
-            TARGET = p
-            break
-    else:
-        sys.exit(f"ERROR: Could not find market_data api.py. Run from project root or edit TARGET path in this script.")
-
-print(f"Patching: {TARGET.resolve()}")
-content = TARGET.read_text(encoding="utf-8")
-
-# ── 1. Inject sanitise() helper right after the imports block ──────────────────
-SANITISE_HELPER = '''
-
+# Fixed sanitise function to prevent infinite recursion
 def sanitise(obj):
     """Recursively replace float NaN/Inf with None for safe JSON serialisation."""
     if isinstance(obj, float):
-        return None if (obj != obj or obj == float('inf') or obj == float('-inf')) else obj
+        if _np.isnan(obj) or _np.isinf(obj):
+            return None
+        return obj
     if isinstance(obj, dict):
         return {k: sanitise(v) for k, v in obj.items()}
     if isinstance(obj, list):
         return [sanitise(v) for v in obj]
-    try:
-        import numpy as _np
-        if isinstance(obj, _np.floating):
-            f = float(obj)
-            return None if (f != f or f == float('inf') or f == float('-inf')) else f
-        if isinstance(obj, _np.integer):
-            return int(obj)
-    except Exception:
-        pass
-    return obj
+    
+    # Handle Numpy types
+    if isinstance(obj, (_np.floating, _np.complexfloating)):
+        f = float(obj)
+        return None if (_np.isnan(f) or _np.isinf(f)) else f
+    if isinstance(obj, _np.integer):
+        return int(obj)
+        
+    return obj # Return as is if no rules match
 
-'''
+from agent import MarketDataAgent
+from storage import MarketDataStorage
 
-if "def sanitise(" not in content:
-    # Insert after the last top-level import line
-    insert_after = re.search(
-        r'^((?:import |from )\S.*\n)+',   # block of import lines
-        content,
-        re.MULTILINE
-    )
-    if insert_after:
-        pos = insert_after.end()
-        content = content[:pos] + SANITISE_HELPER + content[pos:]
-        print("✓ Injected sanitise() helper")
-    else:
-        print("⚠ Could not find import block to insert helper — add it manually")
-else:
-    print("✓ sanitise() already present, skipping")
+app = FastAPI(title="Market Data Agent API")
 
-# ── 2. Wherever yfinance data is fetched, drop NaN rows before use ─────────────
-#    Pattern: df = <ticker>.history(...)  →  df = ...; df = df.dropna(subset=['Close'])
-NAN_DROP_SNIPPET = "    # Drop incomplete last candle (yfinance returns NaN OHLC for today)\n    df = df.dropna(subset=['Close'])\n"
+# Initialize without a fixed list (or keep the list as a starting cache)
+# The agent logic should now be dynamic
+agent = MarketDataAgent() 
+storage = MarketDataStorage()
 
-# Find all .history( calls followed by the DataFrame being returned/used
-# We insert the dropna right after the assignment line
-def inject_dropna(text):
-    lines = text.splitlines(keepends=True)
-    out = []
-    i = 0
-    while i < len(lines):
-        line = lines[i]
-        out.append(line)
-        # Match lines like:  df = something.history(...)
-        if re.search(r'\bdf\s*=\s*.*\.history\(', line) and "dropna" not in line:
-            # Check we haven't already added it on the next line
-            next_line = lines[i+1] if i+1 < len(lines) else ""
-            if "dropna(subset=['Close'])" not in next_line:
-                out.append(NAN_DROP_SNIPPET)
-                print(f"✓ Injected dropna after: {line.rstrip()}")
-        i += 1
-    return "".join(out)
+class PriceRequest(BaseModel):
+    symbol: str
 
-content = inject_dropna(content)
+@app.get("/")
+def root():
+    return {"status": "Market Data Agent API Running", "mode": "Dynamic Search Enabled"}
 
-# ── 3. Wrap all `return` statements inside endpoint functions with sanitise() ──
-#    Target pattern: return <dict or variable>  (not return None / raise)
-def wrap_returns(text):
-    # Only wrap bare `return result` or `return {` style returns inside route fns
-    # Simple heuristic: lines that are `        return <identifier_or_{>`
-    lines = text.splitlines(keepends=True)
-    out = []
-    for line in lines:
-        m = re.match(r'^(\s{4,8})return\s+(\{.*|[a-zA-Z_][a-zA-Z0-9_]*)(\s*)$', line)
-        if m and 'sanitise' not in line:
-            indent, expr, tail = m.group(1), m.group(2), m.group(3)
-            if expr.startswith('{'):
-                # Multi-line dict — can't wrap inline, leave it; user gets the dict
-                # but the sanitise at the response level will catch it
-                out.append(line)
-            else:
-                new_line = f"{indent}return sanitise({expr}){tail}\n"
-                out.append(new_line)
-                print(f"✓ Wrapped: return {expr}  →  return sanitise({expr})")
-        else:
-            out.append(line)
-    return "".join(out)
+@app.get("/price/{symbol}")
+def get_price(symbol: str):
+    """Get current price for ANY symbol requested by the Gradio frontend"""
+    sym = symbol.upper().strip()
+    
+    # Fetch data dynamically via the agent
+    data = agent.fetch_realtime_data(sym)
+    
+    if data and data.get('price') is not None:
+        # Automatically persist any newly searched stock to your database
+        storage.save_realtime_data(data)
+        return sanitise(data)
 
-content = wrap_returns(content)
+    raise HTTPException(status_code=404, detail=f"Symbol '{sym}' not found or invalid")
 
-# ── 4. Write patched file ───────────────────────────────────────────────────────
-TARGET.write_text(content, encoding="utf-8")
-print(f"\n✓ Patched file written: {TARGET.resolve()}")
-print("Restart the market data API (port 8000) for changes to take effect.")
+@app.get("/prices")
+def get_all_prices():
+    """Get prices for all symbols currently tracked in the database"""
+    # Instead of fetching from a hardcoded list, we pull what's currently in storage
+    tracked_symbols = storage.get_all_tracked_symbols() # Ensure this method exists in your storage.py
+    
+    if not tracked_symbols:
+        return {"message": "No symbols currently tracked. Search for a stock first."}
+        
+    data = agent.fetch_multiple_symbols(tracked_symbols)
+    for symbol, info in data.items():
+        storage.save_realtime_data(info)
+    return sanitise(data)
+
+@app.get("/historical/{symbol}")
+def get_historical(symbol: str, period: str = "1y"):
+    """Get historical data for any symbol"""
+    sym = symbol.upper().strip()
+    df = agent.fetch_historical_data(sym, period)
+    
+    if df is not None and not df.empty:
+        storage.save_historical_data(sym, df)
+        # Convert index to string (dates) for JSON safety
+        return df.reset_index().to_dict(orient='records')
+        
+    raise HTTPException(status_code=404, detail=f"Historical data for {sym} not found")
+
+@app.get("/latest")
+def get_latest():
+    """Get latest prices directly from the database"""
+    df = storage.get_latest_prices()
+    if df.empty:
+        return []
+    return df.to_dict(orient='records')
+
+if __name__ == "__main__":
+    # Ensure this matches the port in your Gradio app (MARKET_DATA_API = "http://localhost:8000")
+    uvicorn.run(app, host="0.0.0.0", port=8000)

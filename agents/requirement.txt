@@ -6,3 +6,9 @@ python-dotenv
 gradio
 streamlit
 plotly
+anthropic>=0.40.0
+gradio>=4.44.0
+yfinance>=0.2.40
+pandas>=2.0.0
+numpy>=1.26.0
+plotly>=5.20.0
